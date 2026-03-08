@@ -1,0 +1,33 @@
+# Data files
+data/
+outputs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Precomputed arrays
+*.npy
+
+# Environment
+.env
+.venv/
+venv/
+env/
+.cafa5/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
