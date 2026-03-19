@@ -47,9 +47,11 @@ def build_label_matrix(config: Config) -> tuple[np.ndarray, np.ndarray, np.ndarr
     pid_to_idx = {pid: i for i, pid in enumerate(protein_ids)}
     term_to_idx = {t: i for i, t in enumerate(term_names)}
 
-    label_matrix = np.zeros((len(protein_ids), num_labels), dtype=np.float32)
+    label_matrix = np.zeros((len(protein_ids), num_labels), dtype=np.float32) # [row:n_proteins, column:num_labels]
 
-    for _, row in df_filtered.iterrows():
+    # creates a multi-hot encoding matrix where each row corresponds to a protein and each column corresponds to a GO term. 
+    # A value of 1 indicates that the protein is annotated with that GO term, while 0 indicates no annotation.
+    for _, row in df_filtered.iterrows(): 
         pid = row["EntryID"]
         term = row["term"]
         if pid in pid_to_idx and term in term_to_idx:
