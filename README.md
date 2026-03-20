@@ -11,7 +11,7 @@ CAFA-5-Protein-Function-Prediction-MLOps/
 ├── src/
 │   ├── __init__.py
 │   ├── config.py                  # YAML config loading + dataclass validation
-│   ├── data/
+│   ├── preprocess/
 │   │   ├── __init__.py
 │   │   ├── dataset.py             # ProteinSequenceDataset (PyTorch Dataset)
 │   │   └── preprocessing.py       # Build binary label matrix from train_terms.tsv
