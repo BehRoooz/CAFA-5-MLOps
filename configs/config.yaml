@@ -39,7 +39,7 @@ training:
   seed: 42
 
 prediction:
-  datatype: "holdout" # test | holdout
+  datatype: "test" # test | holdout 
   
 output:
   output_dir: "outputs"
