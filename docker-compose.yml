@@ -1,0 +1,182 @@
+version: "3.9"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Nutzung:
+#   CPU:    docker compose --profile cpu    up
+#   NVIDIA: docker compose --profile nvidia up
+#   AMD:    docker compose --profile amd    up
+# ══════════════════════════════════════════════════════════════════════════════
+
+x-env: &env
+  PROJECT_ROOT: /app
+  PYTHONUNBUFFERED: "1"
+
+x-volumes: &volumes
+  - ./data:/app/data:ro
+  - ./outputs:/app/outputs
+
+x-amd-extras: &amd-extras
+  devices:
+    - /dev/kfd
+    - /dev/dri
+  group_add:
+    - video
+    - render
+  security_opt:
+    - seccomp:unconfined
+
+services:
+
+  # ── CPU ─────────────────────────────────────────────────────────────────────
+  preprocess-cpu:
+    profiles: [cpu]
+    build: { context: ., dockerfile: docker/Dockerfile.cpu }
+    image: cafa5-cpu:latest
+    container_name: cafa5_preprocess_cpu
+    environment: *env
+    volumes: *volumes
+    command: python scripts/preprocess.py --config configs/config.yaml
+    restart: "no"
+
+  train-cpu:
+    profiles: [cpu]
+    build: { context: ., dockerfile: docker/Dockerfile.cpu }
+    image: cafa5-cpu:latest
+    container_name: cafa5_train_cpu
+    environment: *env
+    volumes: *volumes
+    command: python scripts/train.py --config configs/config.yaml
+    depends_on:
+      preprocess-cpu:
+        condition: service_completed_successfully
+    restart: "no"
+
+  predict-cpu:
+    profiles: [cpu]
+    build: { context: ., dockerfile: docker/Dockerfile.cpu }
+    image: cafa5-cpu:latest
+    container_name: cafa5_predict_cpu
+    environment: *env
+    volumes: *volumes
+    command: python scripts/predict.py --config configs/config.yaml
+    depends_on:
+      train-cpu:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # ── NVIDIA ──────────────────────────────────────────────────────────────────
+  preprocess-nvidia:
+    profiles: [nvidia]
+    build: { context: ., dockerfile: docker/Dockerfile.nvidia }
+    image: cafa5-nvidia:latest
+    container_name: cafa5_preprocess_nvidia
+    environment: *env
+    volumes: *volumes
+    command: python scripts/preprocess.py --config configs/config.yaml
+    restart: "no"
+
+  train-nvidia:
+    profiles: [nvidia]
+    build: { context: ., dockerfile: docker/Dockerfile.nvidia }
+    image: cafa5-nvidia:latest
+    container_name: cafa5_train_nvidia
+    environment: *env
+    volumes: *volumes
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: python scripts/train.py --config configs/config.yaml
+    depends_on:
+      preprocess-nvidia:
+        condition: service_completed_successfully
+    restart: "no"
+
+  predict-nvidia:
+    profiles: [nvidia]
+    build: { context: ., dockerfile: docker/Dockerfile.nvidia }
+    image: cafa5-nvidia:latest
+    container_name: cafa5_predict_nvidia
+    environment: *env
+    volumes: *volumes
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: python scripts/predict.py --config configs/config.yaml
+    depends_on:
+      train-nvidia:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # ── AMD ROCm ─────────────────────────────────────────────────────────────────
+  preprocess-amd:
+    profiles: [amd]
+    build: { context: ., dockerfile: docker/Dockerfile.amd }
+    image: cafa5-amd:latest
+    container_name: cafa5_preprocess_amd
+    environment:
+      <<: *env
+      HSA_OVERRIDE_GFX_VERSION: "12.0.0"
+      PYTORCH_ROCM_ARCH: gfx1200
+    volumes: *volumes
+    <<: *amd-extras
+    command: python scripts/preprocess.py --config configs/config.yaml
+    restart: "no"
+
+  train-amd:
+    profiles: [amd]
+    build: { context: ., dockerfile: docker/Dockerfile.amd }
+    image: cafa5-amd:latest
+    container_name: cafa5_train_amd
+    environment:
+      <<: *env
+      HSA_OVERRIDE_GFX_VERSION: "12.0.0"
+      PYTORCH_ROCM_ARCH: gfx1200
+    volumes: *volumes
+    <<: *amd-extras
+    command: python scripts/train.py --config configs/config.yaml
+    depends_on:
+      preprocess-amd:
+        condition: service_completed_successfully
+    restart: "no"
+
+  predict-amd:
+    profiles: [amd]
+    build: { context: ., dockerfile: docker/Dockerfile.amd }
+    image: cafa5-amd:latest
+    container_name: cafa5_predict_amd
+    environment:
+      <<: *env
+      HSA_OVERRIDE_GFX_VERSION: "12.0.0"
+      PYTORCH_ROCM_ARCH: gfx1200
+    volumes: *volumes
+    <<: *amd-extras
+    command: python scripts/predict.py --config configs/config.yaml
+    depends_on:
+      train-amd:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # ── Inference API ──────────────────────────────────────────────────────────
+  api:
+    profiles: [amd, nvidia, cpu]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    image: cafa5-api:latest
+    container_name: cafa5_api
+    environment:
+      PROJECT_ROOT: /app
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./outputs:/app/outputs:ro
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

@@ -1,0 +1,23 @@
+# ── AMD ROCm ──────────────────────────────────────────────────────────────────
+# RDNA 4 (RX 9060 XT = gfx1200)
+FROM rocm/pytorch:latest
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY configs/ ./configs/
+COPY scripts/  ./scripts/
+COPY src/      ./src/
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PROJECT_ROOT=/app
+
+# RDNA 4 GPU target
+ENV HSA_OVERRIDE_GFX_VERSION=12.0.0
+ENV PYTORCH_ROCM_ARCH=gfx1200
