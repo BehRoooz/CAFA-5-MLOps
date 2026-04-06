@@ -1,6 +1,8 @@
 # Data files
 data/
+docs/
 outputs/
+!outputs/checkpoints/
 
 # Python
 __pycache__/
@@ -31,3 +33,6 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Paper / presentation notes (kept local, not synced)
+notes/

@@ -23,7 +23,9 @@ def build_label_matrix(config: Config) -> tuple[np.ndarray, np.ndarray, np.ndarr
         - term_names:   1-D array of GO-term strings
     """
     num_labels = config.num_labels
-    data_dir = Path(config.data.get("data_dir", "data/cafa-5-protein-function-prediction"))
+    data_dir = Path(
+        config.data.get("data_dir", "./data/cafa-5-protein-function-prediction")
+    )
     labels_path = data_dir / "Train" / "train_terms.tsv"
 
     if not labels_path.exists():
@@ -47,11 +49,9 @@ def build_label_matrix(config: Config) -> tuple[np.ndarray, np.ndarray, np.ndarr
     pid_to_idx = {pid: i for i, pid in enumerate(protein_ids)}
     term_to_idx = {t: i for i, t in enumerate(term_names)}
 
-    label_matrix = np.zeros((len(protein_ids), num_labels), dtype=np.float32) # [row:n_proteins, column:num_labels]
+    label_matrix = np.zeros((len(protein_ids), num_labels), dtype=np.float32)
 
-    # creates a multi-hot encoding matrix where each row corresponds to a protein and each column corresponds to a GO term. 
-    # A value of 1 indicates that the protein is annotated with that GO term, while 0 indicates no annotation.
-    for _, row in df_filtered.iterrows(): 
+    for _, row in df_filtered.iterrows():
         pid = row["EntryID"]
         term = row["term"]
         if pid in pid_to_idx and term in term_to_idx:
