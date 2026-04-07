@@ -231,9 +231,16 @@ The API listens on **http://127.0.0.1:8000**. Persisted on the host:
 
 Service-specific details: [services/embedding-api/README.md](services/embedding-api/README.md).
 
-### Test (curl + artifact download)
+### Smoke test (curl + artifact download)
 
 With the stack running (`docker compose up`), in another terminal:
+
+```bash
+chmod +x scripts/smoke_embedding_api.sh
+./scripts/smoke_embedding_api.sh
+```
+
+Or manually:
 
 ```bash
 # Health
@@ -307,6 +314,55 @@ docker run --rm \
 - **Queue backend**: Redis/RQ, Celery, or cloud task queues for multi-worker embedding and back-pressure instead of a single in-process worker.
 - **Train / holdout stages**: extend the API to build label matrices, splits, and `train_*` / `holdout_*` embeddings as in the batch script.
 - **Registry / CI deployment**: push images to GHCR/ECR/GCR; GitHub Actions (build, scan, push); optional Kubernetes manifests or managed container services for production.
+
+## Integrated Embedding -> GO API
+
+To run both teammate services together (embedding + GO prediction + MLflow):
+
+```bash
+docker compose up --build
+```
+
+Ports:
+
+- `embedding-api`: `http://127.0.0.1:8000`
+- `go-prediction-api`: `http://127.0.0.1:8001`
+- `mlflow`: `http://127.0.0.1:5000`
+
+Integration flow:
+
+1. Submit embedding job (`POST /api/v1/jobs` or `/api/v1/jobs/fasta`) to `embedding-api`.
+2. Poll until status is `succeeded`.
+3. Trigger GO inference directly from embedding artifacts:
+
+```bash
+curl -sS -X POST "http://127.0.0.1:8000/api/v1/jobs/<JOB_ID>/predict-go" \
+  -H "Content-Type: application/json" \
+  -d '{"top_k": 10}'
+```
+
+Optional request fields:
+
+- `indices`: subset of embedding row indices to score (e.g. `[0, 3, 7]`)
+- `fail_fast`: default `true`; set `false` to continue on per-sequence failures and collect them in `failures`.
+
+One-shot endpoint (submit + wait + predict in one call):
+
+```bash
+curl -sS -X POST "http://127.0.0.1:8000/api/v1/predict-go-from-sequences" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "backend": "esm2",
+    "pooling": "mean",
+    "batch_size": 2,
+    "max_length": 1280,
+    "top_k": 10,
+    "sequences": [
+      {"id": "P1", "sequence": "MKTAYIAKQRQISFVKSHFSRQ"},
+      {"id": "P2", "sequence": "GAVLIPFYWSTCMNQDEKRH"}
+    ]
+  }'
+```
 
 ## License
 
