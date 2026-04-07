@@ -231,16 +231,9 @@ The API listens on **http://127.0.0.1:8000**. Persisted on the host:
 
 Service-specific details: [services/embedding-api/README.md](services/embedding-api/README.md).
 
-### Smoke test (curl + artifact download)
+### Test (curl + artifact download)
 
 With the stack running (`docker compose up`), in another terminal:
-
-```bash
-chmod +x scripts/smoke_embedding_api.sh
-./scripts/smoke_embedding_api.sh
-```
-
-Or manually:
 
 ```bash
 # Health
