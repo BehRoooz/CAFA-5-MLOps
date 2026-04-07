@@ -41,8 +41,10 @@ CAFA-5-Protein-Function-Prediction-MLOps/
 ├── requirements.txt
 ├── pyproject.toml
 ├── docker-compose.yml           # Embedding API (Docker Compose)
-├── Dockerfile.embedding         # CLI: batch embedding image
-├── Dockerfile.embedding-api     # Embedding API image
+├── docker/
+│   └── docker_embedding/
+│       ├── Dockerfile.embedding-cli   # CLI: batch embedding image
+│       └── Dockerfile.embedding-api   # Embedding API image
 ├── .gitignore
 └── README.md
 ```
@@ -214,17 +216,12 @@ This section covers the **Embedding API** (FastAPI service under `services/embed
 - Your Linux user should be in the `docker` group (or use `sudo docker ...`) so the daemon socket is usable.
 - First API run will download the Hugging Face model into `./data/hf_cache` (mounted into the container).
 
-### Embedding API
+### Embedding API (Recommended)
 
 From the repository root:
 
 ```bash
-docker build -f Dockerfile.embedding-api -t cafa5-embedding-api:cpu .
-
-docker run -p 8000:8000 \
-  -v "$(pwd)/outputs:/app/outputs" \
-  -v "$(pwd)/data/hf_cache:/app/data/hf_cache" \
-  cafa5-embedding-api:cpu
+docker compose up --build
 ```
 
 The API listens on **http://127.0.0.1:8000**. Persisted on the host:
@@ -234,7 +231,16 @@ The API listens on **http://127.0.0.1:8000**. Persisted on the host:
 
 Service-specific details: [services/embedding-api/README.md](services/embedding-api/README.md).
 
-### Test (curl + artifact download)
+### Smoke test (curl + artifact download)
+
+With the stack running (`docker compose up`), in another terminal:
+
+```bash
+chmod +x scripts/smoke_embedding_api.sh
+./scripts/smoke_embedding_api.sh
+```
+
+Or manually:
 
 ```bash
 # Health
@@ -292,7 +298,7 @@ print(emb.shape, emb.dtype)
 Build and run the CLI image (outputs follow `configs/config.yaml` paths under mounted `./data`):
 
 ```bash
-docker build -f Dockerfile.embedding-cli -t cafa5-embedding-cli:cpu .
+docker build -f docker/docker_embedding/Dockerfile.embedding-cli -t cafa5-embedding-cli:cpu .
 docker run --rm \
   -v "$(pwd)/data:/app/data" \
   -v "$(pwd)/outputs:/app/outputs" \
