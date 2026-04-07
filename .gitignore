@@ -25,6 +25,7 @@ build/
 venv/
 env/
 .cafa5/
+notes/
 
 # IDE
 .vscode/
