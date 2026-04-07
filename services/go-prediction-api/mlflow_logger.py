@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import os
-from typing import Any
 
-import mlflow
+try:
+    import mlflow
+    MLFLOW_IMPORT_ERROR = None
+except Exception as exc:  # pragma: no cover - defensive import for runtime environments
+    mlflow = None
+    MLFLOW_IMPORT_ERROR = str(exc)
 
 
 def log_inference(
@@ -15,7 +19,10 @@ def log_inference(
     request_id: str | None = None,
 ) -> None:
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+
     if not tracking_uri:
+        return
+    if mlflow is None:
         return
 
     try:

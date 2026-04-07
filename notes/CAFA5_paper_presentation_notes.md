@@ -253,3 +253,86 @@ Last updated: 2026-03-26
 - [ ] Add run provenance: config snapshot + versions + git SHA.
 - [ ] Summarize compute budget and embedding generation throughput.
 
+## Integration Milestone (Embedding API <-> GO Prediction API)
+
+### Milestone objective
+- Move from offline-only prediction to an online inference flow where a user submits protein sequences (or FASTA) and receives GO term predictions end-to-end.
+- Integrate two services:
+  - `embedding-api`: sequence ingestion, embedding generation, artifact management, orchestration.
+  - `go-prediction-api`: model loading and GO term inference from 1280-d embeddings.
+
+### Final integrated request flow (demo-friendly)
+1. Client calls `POST /api/v1/predict-go-from-sequences` on `embedding-api`.
+2. `embedding-api` creates an internal embedding job and waits for completion.
+3. Generated artifacts (`test_ids.npy`, `test_embeddings.npy`) are persisted in `outputs/service_artifacts/<job_id>/`.
+4. For each selected sequence index, `embedding-api` calls `go-prediction-api /predict` with embedding vector + `top_k`.
+5. `go-prediction-api` returns ranked GO terms with scores.
+6. `embedding-api` aggregates per-sequence results (and failures, if any) and returns unified API response.
+
+### Docker + deployment setup introduced
+- Added a dedicated GO API Docker build path (`docker/docker_go_term/Dockerfile.api`) with explicit copy of required model artifacts:
+  - `outputs/checkpoints/best_model.pt`
+  - `outputs/label_matrix_top500/term_names.npy`
+  - `outputs/splits/*`
+- Compose orchestrates:
+  - `embedding-api`
+  - `go-prediction-api`
+  - `mlflow` (tracking backend for inference logging)
+- Environment links include `MLFLOW_TRACKING_URI` and internal service URL wiring for GO API calls.
+
+### Incident during integration (excellent presentation story)
+
+#### Symptom
+- Public endpoint returned `502 Bad Gateway` when predicting GO from sequences.
+- Error payload included:
+  - `GO_API_UNREACHABLE` in one run
+  - later `GO_API_HTTP_500: {"detail":"model artifacts could not be loaded"}` after partial fixes
+
+#### Root-cause chain (what actually happened)
+1. `go-prediction-api` initially crashed on startup due to `ModuleNotFoundError: No module named 'mlflow'`.
+2. Because GO API was down, `embedding-api` could not reach upstream and returned `502`.
+3. After making MLflow import non-fatal (or available), GO API started but `/predict` still returned 500.
+4. Second root cause: loader expected `outputs/splits/model_meta.json`, but repository artifacts provided `split_meta.json` and checkpoint-contained config instead.
+5. Model startup failed silently into `MODEL=None`, causing `/predict` to return `"model artifacts could not be loaded"` and propagate as `502` at gateway level.
+
+### Fixes implemented
+1. **Resilient MLflow integration**
+   - `mlflow` import guarded so missing tracking dependency does not crash service startup.
+   - Inference logging remains best-effort and non-blocking.
+2. **Robust model metadata fallback**
+   - In `services/go-prediction-api/model_loader.py`, added fallback metadata reconstruction from checkpoint `config` when `model_meta.json` is absent.
+   - Fallback resolves:
+     - `model_type`
+     - `embedding_dim` (via backend mapping: ESM2/ProtBERT/T5)
+     - `num_labels`
+     - `model_version`
+3. **Debug instrumentation loop (then cleaned)**
+   - Added temporary runtime logs across service startup + upstream request path.
+   - Confirmed hypotheses with runtime evidence.
+   - Removed instrumentation after successful verification.
+
+### Engineering lessons (good for “Challenges & Learnings” slide)
+- Inference services must treat observability features (MLflow/logging) as optional, never hard startup dependencies.
+- API gateway-style services (`embedding-api`) can mask upstream faults as 502; keep explicit upstream error typing for diagnosis.
+- Artifact contracts between training and serving must be explicit and versioned (expected file names, schemas, dimensions).
+- For biological ML systems, always validate:
+  - embedding dimensionality consistency (1280 here),
+  - metadata integrity (`num_labels`, term vocabulary),
+  - prediction API schema stability across services.
+
+### Production guidance decided in this milestone
+- Keep checkpoints out of Git (`.gitignore`) to avoid repository bloat and model-version drift.
+- Include checkpoints in Docker context only if using image-baked model artifacts.
+- Preferred future direction: load model from registry/object storage (MLflow artifacts, S3, etc.) at startup with pinned version and health checks.
+
+### Validation status after fix
+- `go-prediction-api` starts successfully and serves `/predict`.
+- `embedding-api` sequence-to-GO endpoint works end-to-end without 502 for this failure mode.
+- Integration path now supports presentation demo of real-time GO prediction from sequence input.
+
+### Presenter notes (talk track)
+- “We intentionally converted a research pipeline into a service-oriented inference system.”
+- “The key integration risk was not modeling accuracy, but artifact/runtime contract mismatches.”
+- “We solved this by making the serving layer tolerant to optional components and by deriving missing metadata from checkpoint provenance.”
+- “This milestone gave us a reproducible base for next milestone: full MLflow-enabled inference tracking and model registry loading.”
+
