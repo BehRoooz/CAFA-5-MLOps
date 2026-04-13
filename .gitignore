@@ -2,7 +2,8 @@
 data/
 docs/
 outputs/
-!outputs/checkpoints/
+scripts/smoke_embedding_api.sh
+
 
 # Python
 __pycache__/
