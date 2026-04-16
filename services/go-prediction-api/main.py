@@ -24,34 +24,53 @@ app = FastAPI(title="CAFA Inference API")
 MODEL = None
 TERM_NAMES = None
 MODEL_META = None
+MODEL_SOURCE_TYPE = "none"
 
 
 @app.on_event("startup")
 def startup_event() -> None:
-    global MODEL, TERM_NAMES, MODEL_META
-    try:
-        if MODEL_URI:
+    global MODEL, TERM_NAMES, MODEL_META, MODEL_SOURCE_TYPE
+
+    MODEL_SOURCE_TYPE = "none"
+
+    # --- Versuch: MLflow Registry ---
+    if MODEL_URI:
+        try:
+            print("[startup] loading model from MLflow registry:", MODEL_URI)
             MODEL, TERM_NAMES, MODEL_META = load_model_from_registry(
                 MODEL_URI,
                 device="cpu",
                 cache_dir=MODEL_CACHE_DIR,
             )
-        else:
-            MODEL, MODEL_META = load_model(CHECKPOINT_PATH, META_PATH, device="cpu")
-            TERM_NAMES = load_term_names(TERM_NAMES_PATH)
-    except Exception:
+            MODEL_SOURCE_TYPE = "registry"
+            print("[startup] loaded model from registry")
+            return
+        except Exception as e:
+            print("[startup] registry load failed:", str(e))
+
+    # --- Fallback: lokales Checkpoint ---
+    try:
+        print("[startup] loading model from local checkpoint")
+        MODEL, MODEL_META = load_model(CHECKPOINT_PATH, META_PATH, device="cpu")
+        TERM_NAMES = load_term_names(TERM_NAMES_PATH)
+        MODEL_SOURCE_TYPE = "checkpoint"
+        print("[startup] loaded model from checkpoint")
+    except Exception as e:
+        print("[startup] checkpoint load failed:", str(e))
         MODEL = None
         TERM_NAMES = None
         MODEL_META = None
+        MODEL_SOURCE_TYPE = "none"
 
 
-@app.get("/health", response_model=HealthResponse)
-def health() -> HealthResponse:
-    return HealthResponse(
-        status="ok",
-        model_loaded=MODEL is not None and TERM_NAMES is not None and MODEL_META is not None,
-        model_version=MODEL_META.get("model_version") if MODEL_META else None,
-    )
+@app.get("/health")
+def health() -> dict:
+    return {
+        "status": "ok",
+        "model_loaded": MODEL is not None and TERM_NAMES is not None and MODEL_META is not None,
+        "model_version": MODEL_META.get("model_version") if MODEL_META else None,
+        "model_source_type": MODEL_SOURCE_TYPE,
+    }
 
 
 @app.post("/predict", response_model=PredictResponse)

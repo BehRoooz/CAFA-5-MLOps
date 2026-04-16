@@ -1,4 +1,4 @@
-FROM rocm/pytorch:rocm7.2.1_ubuntu22.04_py3.10_pytorch_release_2.9.1
+FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt /app/requirements.txt
 
-# ROCm-PyTorch ist im Basisimage schon vorhanden.
+# PyTorch ist im Basisimage schon vorhanden.
 # torch deshalb nicht noch einmal aus requirements installieren.
 RUN grep -vE '^torch([<>=].*)?$' /app/requirements.txt > /app/requirements.no_torch.txt && \
     python -m pip install --upgrade pip "setuptools<81" wheel && \
@@ -21,10 +21,5 @@ COPY src /app/src
 COPY scripts /app/scripts
 COPY configs /app/configs
 COPY data/cafa-5-protein-function-prediction/Train/train_terms.tsv /app/data/cafa-5-protein-function-prediction/Train/train_terms.tsv
-COPY services/training-api /app/services/training-api
 
-RUN mkdir -p /app/data /app/outputs
-
-EXPOSE 8000
-
-CMD ["uvicorn", "main:app", "--app-dir", "services/training-api", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["python"]
