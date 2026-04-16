@@ -1,40 +1,37 @@
-# Data files
+# Runtime data provided locally by the user
 data/
-docs/
 outputs/
-scripts/smoke_embedding_api.sh
+mlruns/
+models/
 
-
-# Python
+# Python environments / cache
+.venv/
 __pycache__/
 *.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-.eggs/
 
-# Jupyter
-.ipynb_checkpoints/
-
-# Precomputed arrays
-*.npy
-
-# Environment
+# Secrets / local auth
 .env
-.venv/
-venv/
-env/
-.cafa5/
-notes/
+.env.*
+deploy/nginx/.htpasswd-admin
 
-# IDE
-.vscode/
-.idea/
+# Local working directories
+.projectbuilder/
+.backup_before_merge_test_sync/
+.backup_mlruns/
 
-# OS
-.DS_Store
-Thumbs.db
+# Backups / temporary files
+*.bak.*
+*~
+*.log
 
-# Paper / presentation notes (kept local, not synced)
-notes/
+# Databases / generated ML artifacts
+*.db
+*.sqlite
+*.sqlite3
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+*.parquet
+notes/CAFA5_Operations_and_Deployment_EN.txt

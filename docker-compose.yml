@@ -17,10 +17,21 @@ services:
     command: ["scripts/retrain_pipeline.py", "--config", "configs/config.yaml"]
     depends_on:
       - mlflow
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    shm_size: "8g"
     volumes:
-      - ./data:/app/data
-      - ./outputs:/app/outputs
-      - ./mlruns:/mlruns
+      - ./data:/app/data:Z
+      - ./outputs:/app/outputs:Z
+      - mlruns_data:/mlruns
 
   embedding-api:
     build:
@@ -37,8 +48,8 @@ services:
       - go-prediction-api
       - mlflow
     volumes:
-      - ./outputs:/app/outputs
-      - ./data/hf_cache:/app/data/hf_cache
+      - ./outputs:/app/outputs:Z
+      - ./data/hf_cache:/app/data/hf_cache:Z
     ports:
       - "8000:8000"
 
@@ -56,15 +67,30 @@ services:
       MODEL_CACHE_DIR: /app/model_cache
     depends_on:
       - mlflow
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    shm_size: "8g"
     ports:
       - "8001:8000"
     volumes:
-      - ./outputs:/app/outputs
+      - ./outputs:/app/outputs:Z
+      - mlruns_data:/mlruns
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.13.0
-    command: mlflow server --host 0.0.0.0 --port 5000
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns --default-artifact-root /mlruns
     volumes:
-      - ./mlruns:/mlruns
+      - mlruns_data:/mlruns
     ports:
       - "5000:5000"
+
+volumes:
+  mlruns_data:

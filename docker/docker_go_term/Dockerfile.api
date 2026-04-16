@@ -1,9 +1,7 @@
-FROM python:3.11-slim
+FROM rocm/pytorch:rocm7.2.1_ubuntu22.04_py3.10_pytorch_release_2.9.1
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/app:/app/services/go-prediction-api
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
@@ -13,12 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r /app/requirements.txt
+
+# ROCm-PyTorch ist schon im Basisimage.
+RUN grep -vE '^torch([<>=].*)?$' /app/requirements.txt > /app/requirements.no_torch.txt && \
+    python -m pip install --upgrade pip "setuptools<81" wheel && \
+    python -m pip install -r /app/requirements.no_torch.txt
 
 COPY src /app/src
 COPY services/go-prediction-api /app/services/go-prediction-api
+
 RUN mkdir -p /app/model_cache /app/outputs
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "/app/services/go-prediction-api"]
+ENTRYPOINT ["/usr/bin/tini", "--", "python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

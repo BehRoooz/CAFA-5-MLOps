@@ -13,3 +13,8 @@ notebooks
 .idea
 .vscode
 docs
+
+!data/
+!data/cafa-5-protein-function-prediction/
+!data/cafa-5-protein-function-prediction/Train/
+!data/cafa-5-protein-function-prediction/Train/train_terms.tsv
