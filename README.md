@@ -550,6 +550,92 @@ Notes:
   - `docker compose logs -f embedding-api`
   - `docker compose logs -f go-prediction-api`
 
+## Docker Compose stack (`docker-compose.yml`)
+
+| Service | Image / build | Host port | Purpose |
+|---------|----------------|-----------|---------|
+| **mlflow** | `ghcr.io/mlflow/mlflow:v2.13.0` | **5000** | Tracking server; `./mlruns` mounted |
+| **go-prediction-api** | `docker/docker_go_term/Dockerfile.api` | **8001** →8000 | Inference API; `MODEL_URI` default `models:/cafa-go-model@champion` |
+| **embedding-api** | `docker/docker_embedding/Dockerfile.embedding-api` | **8000** | Embedding jobs + integration hooks to GO API |
+| **trainer** | `docker/docker_training/Dockerfile.training` | — | **Profile `training`**: runs `scripts/retrain_pipeline.py` |
+
+**Bring up the inference stack (no training):**
+
+```bash
+docker compose up --build
+```
+
+**Include automated retrain + eval + promotion** (requires training data and embeddings mounted under `./data` and `./outputs` as in the compose file):
+
+```bash
+docker compose --profile training up --build
+```
+
+Environment variables of note: `REGISTERED_MODEL_NAME`, `PROMOTION_THRESHOLD`, `MLFLOW_TRACKING_URI`, `MODEL_CACHE_DIR` for the GO API.
+
+The **training** image copies a minimal subset of the repo (see `Dockerfile.training`); full training in containers assumes you mount **`./data`** and **`./outputs`** so embeddings, FASTA, and splits are available.
+
+---
+
+## HTTP services
+
+### Embedding API (`services/embedding-api`)
+
+- **FastAPI** service: submit **JSON sequences** or **FASTA**, poll job status, download **`test_ids.npy`** / **`test_embeddings.npy`** (for `stage: test`).
+- Artifacts and SQLite job store under `outputs/service_artifacts/`.
+- Can call the **GO prediction API** after a job completes (e.g. `predict-go` on a job, or one-shot `predict-go-from-sequences`).
+- Detailed endpoint list: `services/embedding-api/README.md`.
+
+### GO prediction API (`services/go-prediction-api`)
+
+- **`GET /health`** — reports whether the model and metadata loaded.
+- **`POST /predict`** — JSON body with `embedding` (float list) and `top_k`; returns top GO terms with scores.
+- Startup loads weights from **MLflow Model Registry** when `MODEL_URI` is set (default **`models:/cafa-go-model@champion`**), using **`model_loader.load_model_from_registry`**, with **`model_meta.json`**-compatible architecture and **`term_names.npy`** for human-readable labels.
+- Optional MLflow logging for inference (see `mlflow_logger.py`).
+
+**Important:** The default GO API path is tuned for **ESM-2 (1280-d embeddings)**. Other backends (1024-d) require a matching trained model and metadata in the registry.
+
+---
+
+## End-to-end integration (high level)
+
+```mermaid
+flowchart LR
+  subgraph ingest [Ingest]
+    FASTA[FASTA / sequences]
+  end
+  subgraph embed [Embedding]
+    EAPI[embedding-api]
+    NPY[embeddings .npy]
+  end
+  subgraph train [Training]
+    TR[train.py]
+    REG[(MLflow Registry)]
+  end
+  subgraph serve [Serving]
+    GO[go-prediction-api]
+  end
+  FASTA --> EAPI --> NPY
+  NPY --> TR --> REG
+  REG --> GO
+  EAPI --> GO
+```
+
+1. Sequences are embedded (CLI, Docker CLI image, or **embedding-api**).
+2. **train.py** consumes training embeddings + labels, logs and registers models.
+3. **evaluate_holdout.py** and **promote_model.py** qualify new versions; **`champion`** points production inference at an approved version.
+4. **go-prediction-api** resolves `MODEL_URI` and serves **top-k GO** predictions.
+
+---
+
+## Dependencies (summary)
+
+- **Core:** Python ≥3.10, PyTorch, NumPy, pandas, PyYAML, torchmetrics, matplotlib, **transformers**, **safetensors**, **MLflow 2.13.0**.
+- **Services:** FastAPI, Uvicorn, python-multipart.
+- **Container base images:** Python slim for app images; official MLflow image for the tracking server.
+
+---
+
 ## License
 
 MIT
