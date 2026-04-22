@@ -73,7 +73,13 @@ services:
     depends_on:
       - mlflow
       - go-prediction-api
-    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - ./outputs:/app/outputs:Z
       - ./data/hf_cache:/app/data/hf_cache:Z
@@ -137,7 +143,6 @@ services:
       - ./data:/app/data:Z
       - ./outputs:/app/outputs:Z
       - ./mlruns:/mlruns:z
-
   trainer-nvidia:
     profiles: ["training-nvidia"]
     build:
@@ -154,7 +159,13 @@ services:
     command: ["scripts/retrain_pipeline.py", "--config", "configs/config.yaml"]
     depends_on:
       - mlflow
-    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
       - ./data:/app/data:Z
       - ./outputs:/app/outputs:Z
