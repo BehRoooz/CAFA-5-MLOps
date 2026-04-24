@@ -1,0 +1,206 @@
+services:
+  nginx:
+    profiles: ["gateway"]
+    image: nginx:1.27-alpine
+    depends_on:
+      - go-prediction-api
+    ports:
+      - "8088:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z
+      - ./deploy/nginx/.htpasswd-admin:/etc/nginx/.htpasswd-admin:ro,Z
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.0
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns --default-artifact-root /mlruns
+    volumes:
+      - ./mlruns:/mlruns:z
+
+  go-prediction-api:
+    profiles: ["serving"]
+    build:
+      context: .
+      dockerfile: docker/docker_go_term/Dockerfile.api
+    image: cafa5-go-prediction-api:local
+    working_dir: /app/services/go-prediction-api
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app:/app/services/go-prediction-api
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_URI: models:/cafa-go-model@champion
+      MODEL_CACHE_DIR: /app/model_cache
+    depends_on:
+      - mlflow
+    volumes:
+      - ./outputs:/app/outputs:Z
+      - ./mlruns:/mlruns:z
+
+  embedding-api-cpu:
+    profiles: ["admin-cpu"]
+    build:
+      context: .
+      dockerfile: docker/docker_embedding/Dockerfile.embedding-api.cpu
+    image: cafa5-embedding-api:cpu
+    working_dir: /app/services/embedding-api
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app:/app/services/embedding-api
+      GO_PREDICTION_API_URL: http://go-prediction-api:8000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      - mlflow
+      - go-prediction-api
+    volumes:
+      - ./outputs:/app/outputs:Z
+      - ./data/hf_cache:/app/data/hf_cache:Z
+    networks:
+      default:
+        aliases:
+          - embedding-api
+
+  embedding-api-nvidia:
+    profiles: ["admin-nvidia"]
+    build:
+      context: .
+      dockerfile: docker/docker_embedding/Dockerfile.embedding-api.nvidia
+    image: cafa5-embedding-api:nvidia
+    working_dir: /app/services/embedding-api
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app:/app/services/embedding-api
+      GO_PREDICTION_API_URL: http://go-prediction-api:8000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      - mlflow
+      - go-prediction-api
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./outputs:/app/outputs:Z
+      - ./data/hf_cache:/app/data/hf_cache:Z
+    networks:
+      default:
+        aliases:
+          - embedding-api
+
+  embedding-api-amd:
+    profiles: ["admin-amd"]
+    build:
+      context: .
+      dockerfile: docker/docker_embedding/Dockerfile.embedding-api.amd
+    image: cafa5-embedding-api:amd
+    working_dir: /app/services/embedding-api
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app:/app/services/embedding-api
+      GO_PREDICTION_API_URL: http://go-prediction-api:8000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL: "1"
+    depends_on:
+      - mlflow
+      - go-prediction-api
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    shm_size: "8g"
+    volumes:
+      - ./outputs:/app/outputs:Z
+      - ./data/hf_cache:/app/data/hf_cache:Z
+    networks:
+      default:
+        aliases:
+          - embedding-api
+
+  trainer-cpu:
+    profiles: ["training-cpu"]
+    build:
+      context: .
+      dockerfile: docker/docker_training/Dockerfile.training.cpu
+    image: cafa5-trainer:cpu
+    working_dir: /app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      REGISTERED_MODEL_NAME: cafa-go-model
+      PROMOTION_THRESHOLD: "0.35"
+    command: ["scripts/retrain_pipeline.py", "--config", "configs/config.yaml"]
+    depends_on:
+      - mlflow
+    volumes:
+      - ./data:/app/data:Z
+      - ./outputs:/app/outputs:Z
+      - ./mlruns:/mlruns:z
+  trainer-nvidia:
+    profiles: ["training-nvidia"]
+    build:
+      context: .
+      dockerfile: docker/docker_training/Dockerfile.training.nvidia
+    image: cafa5-trainer:nvidia
+    working_dir: /app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      REGISTERED_MODEL_NAME: cafa-go-model
+      PROMOTION_THRESHOLD: "0.35"
+    command: ["scripts/retrain_pipeline.py", "--config", "configs/config.yaml"]
+    depends_on:
+      - mlflow
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - ./data:/app/data:Z
+      - ./outputs:/app/outputs:Z
+      - ./mlruns:/mlruns:z
+
+  trainer-amd:
+    profiles: ["training-amd"]
+    build:
+      context: .
+      dockerfile: docker/docker_training/Dockerfile.training.amd
+    image: cafa5-trainer:amd
+    working_dir: /app
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      REGISTERED_MODEL_NAME: cafa-go-model
+      PROMOTION_THRESHOLD: "0.35"
+      TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL: "1"
+    command: ["scripts/retrain_pipeline.py", "--config", "configs/config.yaml"]
+    depends_on:
+      - mlflow
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    shm_size: "8g"
+    volumes:
+      - ./data:/app/data:Z
+      - ./outputs:/app/outputs:Z
+      - ./mlruns:/mlruns:z
+

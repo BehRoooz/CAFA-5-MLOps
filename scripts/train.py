@@ -197,8 +197,11 @@ def main() -> None:
             if state_dict:
                 model.load_state_dict(state_dict, strict=False)
 
+            # Log the registry model in a CPU-portable form so that
+            # serving can load it on CPU, NVIDIA, or AMD hosts.
+            model_for_registry = model.to("cpu")
             model_info = mlflow.pytorch.log_model(
-                pytorch_model=model,
+                pytorch_model=model_for_registry,
                 artifact_path="model",
                 registered_model_name=registered_model_name,
             )

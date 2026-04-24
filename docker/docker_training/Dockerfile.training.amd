@@ -6,20 +6,20 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    bash \
-    tini \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/
+COPY requirements.txt /app/requirements.txt
 
-# ROCm-PyTorch ist schon im Basisimage.
+# ROCm-PyTorch ist im Basisimage schon vorhanden.
+# torch deshalb nicht noch einmal aus requirements installieren.
 RUN grep -vE '^torch([<>=].*)?$' /app/requirements.txt > /app/requirements.no_torch.txt && \
     python -m pip install --upgrade pip "setuptools<81" wheel && \
     python -m pip install -r /app/requirements.no_torch.txt
 
 COPY src /app/src
-COPY services/go-prediction-api /app/services/go-prediction-api
+COPY scripts /app/scripts
+COPY configs /app/configs
+COPY data/cafa-5-protein-function-prediction/Train/train_terms.tsv /app/data/cafa-5-protein-function-prediction/Train/train_terms.tsv
 
-RUN mkdir -p /app/model_cache /app/outputs
-
-ENTRYPOINT ["/usr/bin/tini", "--", "python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["python"]

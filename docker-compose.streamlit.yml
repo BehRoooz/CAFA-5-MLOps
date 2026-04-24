@@ -1,0 +1,11 @@
+services:
+  streamlit-ui:
+    build:
+      context: .
+      dockerfile: services/streamlit-ui/Dockerfile
+    container_name: cafa5-streamlit-ui
+    ports:
+      - "8501:8501"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

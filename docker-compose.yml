@@ -1,5 +1,6 @@
 # Integrated stack: Embedding API + GO Prediction API + MLflow.
 # Run from repo root: docker compose up --build
+
 services:
   trainer-api:
     build:
@@ -12,16 +13,26 @@ services:
       PYTHONUNBUFFERED: "1"
       PYTHONPATH: /app
       MLFLOW_TRACKING_URI: http://mlflow:5000
-      # Host browser URL for run/registry links returned by GET /api/train/jobs/{id}
       MLFLOW_EXTERNAL_UI_BASE: http://127.0.0.1:5000
       REGISTERED_MODEL_NAME: cafa-go-model
       PROMOTION_THRESHOLD: "0.35"
     depends_on:
       - mlflow
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    shm_size: "8g"
     volumes:
-      - ./data:/app/data
-      - ./outputs:/app/outputs
-      - ./mlruns:/mlruns
+      - ./data:/app/data:Z
+      - ./outputs:/app/outputs:Z
+      - mlruns_data:/mlruns
     ports:
       - "8002:8000"
 
@@ -40,8 +51,8 @@ services:
       - go-prediction-api
       - mlflow
     volumes:
-      - ./outputs:/app/outputs
-      - ./data/hf_cache:/app/data/hf_cache
+      - ./outputs:/app/outputs:Z
+      - ./data/hf_cache:/app/data/hf_cache:Z
     ports:
       - "8000:8000"
 
@@ -59,19 +70,33 @@ services:
       MODEL_CACHE_DIR: /app/model_cache
     depends_on:
       - mlflow
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    ipc: host
+    security_opt:
+      - seccomp=unconfined
+    cap_add:
+      - SYS_PTRACE
+    shm_size: "8g"
     ports:
       - "8001:8000"
     volumes:
-      - ./outputs:/app/outputs
+      - ./outputs:/app/outputs:Z
+      - mlruns_data:/mlruns
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.13.0
-    # Pin store + artifacts to the mounted volume (otherwise the server may use a different cwd ./mlruns).
     command: >
       mlflow server --host 0.0.0.0 --port 5000
       --backend-store-uri file:///mlruns
       --default-artifact-root file:///mlruns
     volumes:
-      - ./mlruns:/mlruns
+      - mlruns_data:/mlruns
     ports:
       - "5000:5000"
+
+volumes:
+  mlruns_data:
