@@ -35,3 +35,4 @@ deploy/nginx/.htpasswd-admin
 *.npz
 *.parquet
 notes/CAFA5_Operations_and_Deployment_EN.txt
+docs/internal/
