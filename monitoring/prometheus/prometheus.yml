@@ -24,8 +24,10 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-          - http://host.docker.internal:8088/health
-          - http://host.docker.internal:8088/api/predict/health
+          - http://host.docker.internal:5000/health
+          - http://host.docker.internal:8001/health
+          - http://host.docker.internal:8000/api/v1/health
+          - http://host.docker.internal:3000/api/health
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

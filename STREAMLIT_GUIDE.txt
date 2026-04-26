@@ -1,0 +1,72 @@
+CAFA-5 Demo UI – Bedienung
+
+────────────────────────────────────────────
+Deutsch
+────────────────────────────────────────────
+
+Ziel:
+Die Streamlit-Oberfläche dient als einfache Demo für die gesamte MLOps-Pipeline.
+
+Ablauf:
+
+1. Eingabe
+- Eine Proteinsequenz wird in das Eingabefeld eingefügt.
+- Beispiel:
+  MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGVLTATQKQNVG
+
+2. Anfrage starten
+- Die Anfrage wird an die Backend-Services gesendet.
+
+3. Verarbeitung
+- Die Embedding API erzeugt numerische Features (ESM2 Embeddings).
+- Die Prediction API nutzt das MLflow-Modell zur Vorhersage.
+
+4. Ergebnis
+- Ausgabe der Top-K GO-Terme (biologische Funktionen).
+- Jeder Term enthält einen Score (Wahrscheinlichkeit).
+
+5. Service Status
+- Anzeige, ob folgende Services verfügbar sind:
+  - Embedding API
+  - Prediction API
+  - NGINX Gateway
+
+6. Architekturhinweis
+- Die UI lädt selbst keine Modelle.
+- Sie ist nur ein Frontend für die Backend-Services.
+
+────────────────────────────────────────────
+English
+────────────────────────────────────────────
+
+Purpose:
+The Streamlit UI is a lightweight frontend for demonstrating the full MLOps pipeline.
+
+Workflow:
+
+1. Input
+- A protein sequence is entered into the input field.
+- Example:
+  MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGVLTATQKQNVG
+
+2. Request
+- The request is sent to the backend services.
+
+3. Processing
+- The Embedding API generates feature vectors (ESM2 embeddings).
+- The Prediction API performs inference using a model from MLflow.
+
+4. Output
+- The system returns Top-K GO terms (biological functions).
+- Each prediction includes a confidence score.
+
+5. Service Status
+- The UI displays the health of:
+  - Embedding API
+  - Prediction API
+  - NGINX Gateway
+
+6. Architecture Note
+- The UI does not load models locally.
+- It acts only as a frontend to deployed services.
+
