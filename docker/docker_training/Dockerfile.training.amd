@@ -20,6 +20,5 @@ RUN grep -vE '^torch([<>=].*)?$' /app/requirements.txt > /app/requirements.no_to
 COPY src /app/src
 COPY scripts /app/scripts
 COPY configs /app/configs
-COPY data/cafa-5-protein-function-prediction/Train/train_terms.tsv /app/data/cafa-5-protein-function-prediction/Train/train_terms.tsv
 
 ENTRYPOINT ["python"]

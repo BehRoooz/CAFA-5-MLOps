@@ -1,0 +1,368 @@
+CAFA-5 MLOps Demo – Start und Bedienung
+
+============================================================
+1. Projektordner
+============================================================
+
+Das Projekt liegt unter:
+
+/home/scardia/Projekte/CAFA-5-MLOps
+
+
+============================================================
+2. Benötigte Dienste starten
+============================================================
+
+Zuerst in den Projektordner wechseln:
+
+cd /home/scardia/Projekte/CAFA-5-MLOps
+
+
+2.1 Core Services starten
+
+Diese Dienste werden für die eigentliche Vorhersage benötigt:
+
+- MLflow
+- GO Prediction API
+- Embedding API
+
+Start:
+
+docker compose -f docker-compose.profiles.yml --profile amd up -d mlflow go-prediction-api embedding-api-amd
+
+
+2.2 Monitoring starten
+
+Startet Prometheus, Grafana, node-exporter, cAdvisor und blackbox-exporter:
+
+docker compose -f docker-compose.monitoring.yml up -d
+
+
+2.3 Streamlit Demo UI starten
+
+Startet die Demo-Oberfläche:
+
+docker compose -f docker-compose.streamlit.yml up -d --build
+
+
+2.4 Optional: NGINX Gateway starten
+
+NGINX dient als Gateway-Layer auf Port 8088:
+
+docker rm -f cafa5-nginx 2>/dev/null || true
+
+docker run -d \
+  --name cafa5-nginx \
+  --network cafa-5-mlops_default \
+  -p 8088:80 \
+  -v /home/scardia/Projekte/CAFA-5-MLOps/deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z \
+  nginx:1.27-alpine
+
+
+============================================================
+3. Wichtige URLs
+============================================================
+
+Streamlit Demo UI:
+http://localhost:8501
+
+Grafana:
+http://localhost:3000
+
+Prometheus:
+http://localhost:9091
+
+MLflow:
+http://localhost:5000
+
+Embedding API:
+http://localhost:8000
+
+Prediction API:
+http://localhost:8001
+
+NGINX Gateway:
+http://localhost:8088
+
+
+============================================================
+4. Health Checks
+============================================================
+
+Prediction API:
+
+curl -s http://localhost:8001/health
+
+Embedding API:
+
+curl -s http://localhost:8000/api/v1/health
+
+MLflow:
+
+curl -s http://localhost:5000/health
+
+NGINX Gateway:
+
+curl -s http://localhost:8088/health
+
+Prometheus Targets:
+
+http://localhost:9091/targets
+
+
+============================================================
+5. Bedienung in Streamlit
+============================================================
+
+Streamlit öffnen:
+
+http://localhost:8501
+
+
+5.1 Service Status prüfen
+
+Oben in der Oberfläche werden die wichtigsten Dienste angezeigt:
+
+- Embedding API Health
+- Prediction API Health
+- NGINX Gateway Health
+
+Alle sollten für eine vollständige Demo auf "UP" stehen.
+
+Falls NGINX "DOWN" ist, funktioniert die direkte Demo trotzdem über die Embedding API und Prediction API.
+
+
+5.2 Proteinsequenz eingeben
+
+Im Feld "Protein sequence" wird eine Aminosäuresequenz eingegeben.
+
+Beispiel:
+
+MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGVLTATQKQNVG
+
+
+5.3 Top-K auswählen
+
+Mit dem Slider "Top-K GO terms" wird gewählt, wie viele GO-Term-Vorhersagen angezeigt werden sollen.
+
+Typischer Demo-Wert:
+
+10
+
+
+5.4 Prediction starten
+
+Auf "Run prediction" klicken.
+
+Dann läuft intern:
+
+Protein sequence
+→ Embedding API
+→ ESM2 Embedding
+→ Prediction API
+→ MLflow Champion Model
+→ GO-Term Predictions
+
+
+5.5 Ergebnis interpretieren
+
+Die Ausgabe enthält GO-Terms und Scores.
+
+Beispiel:
+
+GO:0008150    0.8059
+GO:0005575    0.5969
+GO:0110165    0.5810
+
+Die Scores sind Modell-Scores bzw. Konfidenzwerte.
+Höhere Scores bedeuten stärkere Modellzuordnung.
+
+
+============================================================
+6. Was Streamlit NICHT macht
+============================================================
+
+Streamlit lädt kein Modell selbst.
+
+Streamlit ist nur ein Frontend.
+
+Die eigentliche Berechnung passiert in:
+
+- Embedding API
+- Prediction API
+- MLflow Model Registry
+
+
+============================================================
+7. Wo liegt der Streamlit-Code?
+============================================================
+
+Streamlit App:
+
+services/streamlit-ui/app.py
+
+Dockerfile:
+
+services/streamlit-ui/Dockerfile
+
+Python-Abhängigkeiten:
+
+services/streamlit-ui/requirements.txt
+
+Compose-Datei:
+
+docker-compose.streamlit.yml
+
+
+============================================================
+8. Streamlit ändern
+============================================================
+
+Die UI wird in folgender Datei geändert:
+
+services/streamlit-ui/app.py
+
+Beispiel zum Anzeigen der Datei:
+
+sed -n '1,220p' services/streamlit-ui/app.py
+
+
+Nach Änderungen muss Streamlit neu gebaut werden:
+
+docker rm -f cafa5-streamlit-ui 2>/dev/null || true
+
+docker compose -f docker-compose.streamlit.yml up -d --build
+
+
+Danach Browser neu laden:
+
+http://localhost:8501
+
+
+============================================================
+9. Typische Änderungen in Streamlit
+============================================================
+
+9.1 Text ändern
+
+Datei:
+
+services/streamlit-ui/app.py
+
+Typische Stellen:
+
+- Titel
+- Stack-Beschreibung
+- Demo Notes
+- Erklärungstexte
+
+
+9.2 Neue Links ergänzen
+
+Zum Beispiel:
+
+st.link_button("Open Grafana", "http://localhost:3000")
+st.link_button("Open MLflow", "http://localhost:5000")
+st.link_button("Open Prometheus", "http://localhost:9091")
+
+
+9.3 Andere Beispielsequenz eintragen
+
+Im Textfeld in app.py den Default-Wert ändern:
+
+st.text_area(
+    "Protein sequence",
+    "MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGVLTATQKQNVG",
+    height=120,
+)
+
+
+9.4 Andere API verwenden
+
+Aktuell werden diese URLs verwendet:
+
+EMBEDDING_API = "http://host.docker.internal:8000"
+PREDICTION_API = "http://host.docker.internal:8001"
+
+Wenn später alles über NGINX laufen soll, können diese Werte entsprechend angepasst werden.
+
+
+============================================================
+10. Demo-Ablauf für Präsentation
+============================================================
+
+1. Streamlit öffnen:
+   http://localhost:8501
+
+2. Service Status zeigen:
+   Embedding API UP
+   Prediction API UP
+   NGINX Gateway UP
+
+3. Proteinsequenz zeigen oder einfügen.
+
+4. Top-K auf 10 setzen.
+
+5. Run prediction klicken.
+
+6. GO-Term-Tabelle und Bar Chart erklären.
+
+7. Grafana öffnen:
+   http://localhost:3000
+
+8. Monitoring zeigen:
+   - API Health
+   - HTTP Checks
+   - Response Time
+   - CPU / Memory
+
+9. Abschlusssatz:
+   Das System zeigt eine vollständige MLOps-Inferenzpipeline mit UI, APIs, Registry, Gateway und Monitoring.
+
+
+============================================================
+11. Dienste stoppen
+============================================================
+
+Streamlit stoppen:
+
+docker compose -f docker-compose.streamlit.yml down
+
+Monitoring stoppen:
+
+docker compose -f docker-compose.monitoring.yml down
+
+Core Services stoppen:
+
+docker compose -f docker-compose.profiles.yml --profile amd down
+
+NGINX stoppen:
+
+docker rm -f cafa5-nginx
+
+
+============================================================
+12. Kurzfassung
+============================================================
+
+Start:
+
+cd /home/scardia/Projekte/CAFA-5-MLOps
+
+docker compose -f docker-compose.profiles.yml --profile amd up -d mlflow go-prediction-api embedding-api-amd
+docker compose -f docker-compose.monitoring.yml up -d
+docker compose -f docker-compose.streamlit.yml up -d --build
+
+Optional NGINX:
+
+docker run -d \
+  --name cafa5-nginx \
+  --network cafa-5-mlops_default \
+  -p 8088:80 \
+  -v /home/scardia/Projekte/CAFA-5-MLOps/deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,Z \
+  nginx:1.27-alpine
+
+Öffnen:
+
+http://localhost:8501
+

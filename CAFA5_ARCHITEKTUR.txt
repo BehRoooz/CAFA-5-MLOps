@@ -1,0 +1,66 @@
+CAFA-5 MLOps Architektur
+
+────────────────────────────────────────────────────────────
+
+                         ┌──────────────────────────────┐
+                         │        Streamlit UI          │
+                         │        (Port 8501)           │
+                         │  Demo / User Interaction     │
+                         └──────────────┬───────────────┘
+                                        │
+                                        ▼
+                         ┌──────────────────────────────┐
+                         │        NGINX Gateway         │
+                         │        (Port 8088)           │
+                         │  Routing + Basic Auth        │
+                         └───────┬───────────┬──────────┘
+                                 │           │
+                 ┌───────────────┘           └───────────────┐
+                 ▼                                           ▼
+   ┌──────────────────────────┐              ┌──────────────────────────┐
+   │     Embedding API        │              │    Prediction API        │
+   │     (Port 8000)          │              │     (Port 8001)          │
+   │  ESM2 Feature Extraction │              │  MLflow Model Inference  │
+   └──────────────┬───────────┘              └──────────────┬───────────┘
+                  │                                          │
+                  ▼                                          ▼
+        ┌──────────────────────┐                 ┌──────────────────────┐
+        │   ESM2 Model         │                 │   MLflow Registry    │
+        │ (Embeddings 1280D)   │                 │  (Champion Model)    │
+        └──────────────────────┘                 └──────────────────────┘
+
+────────────────────────────────────────────────────────────
+
+Monitoring & Observability
+
+- Prometheus (Metrics Collection)
+- Grafana (Dashboards)
+- cAdvisor (Container Metrics)
+- Blackbox Exporter (Health Checks)
+
+────────────────────────────────────────────────────────────
+
+Training Pipeline
+
+Raw Data → Embeddings → Training → MLflow Registry
+
+────────────────────────────────────────────────────────────
+
+
+The system is structured into multiple layers.
+
+At the top, we have a Streamlit UI for user interaction.
+
+Requests are routed through an NGINX gateway, which acts as a unified entry point and provides authentication for administrative endpoints.
+
+The core inference pipeline consists of two services:
+an embedding API using ESM2 for feature extraction,
+and a prediction API that loads the current model from MLflow.
+
+The MLflow registry handles model versioning and deployment.
+
+In parallel, the system is monitored using Prometheus and Grafana.
+
+Finally, the training pipeline processes raw protein data, generates embeddings,
+trains the model, and registers it in MLflow.
+
